@@ -18,7 +18,7 @@ TOKEN = "8689624670:AAGLJFfpyErK7I7gaOXeqaMUVbI0M8wlhTw"
 ADMIN_ID = 1805830760 
 
 # DIQQAT: Buni keyingi qadamda Render.com o'zi beradigan manzilga o'zgartiramiz!
-WEBHOOK_URL = "https://SIZNING-APP-NOMINGIZ.onrender.com/webhook"
+WEBHOOK_URL = "https://jieruz.onrender.com/webhook"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
