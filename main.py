@@ -352,6 +352,10 @@ async def on_startup():
     except Exception as e:
         logging.error(f"Webhook o'rnatishda xatolik: {e}")
 
+# UptimeRobot qorovuli uchun eshik
+@app.get("/")
+async def ping():
+    return {"status": "Bot uyg'oq va ishlashga tayyor!"}
 @app.post("/webhook")
 async def telegram_webhook(request: Request):
     try:
