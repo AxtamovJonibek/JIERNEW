@@ -356,6 +356,9 @@ async def main():
     logging.basicConfig(level=logging.INFO)
     print("✅ Bot va Neon Baza barqaror ulandi...")
     
+    # 🧹 Eskirib qolgan (navbatda turgan) xabarlarni o'chirib tashlash:
+    await bot.delete_webhook(drop_pending_updates=True)
+    
     # 1. Telegram botni orqa fonda ishga tushirish
     asyncio.create_task(dp.start_polling(bot))
 
