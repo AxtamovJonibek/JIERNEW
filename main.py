@@ -12,7 +12,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 from aiogram.types import FSInputFile
 
 # --- 1. SOZLAMALAR ---
-TOKEN = "8689624670:AAGLJFfpyErK7I7gaOXeqaMUVbI0M8wlhTw" 
+TOKEN = "8689624670:AAEsKwQCdyIozvw2-RbY_Y-58cZmBg4K_R8" 
 ADMIN_ID = 1805830760 
 
 # 🚨 DIQQAT: MANA SHU YERGA NEON BAZANGIZ SSILKASINI QUYING! 🚨
