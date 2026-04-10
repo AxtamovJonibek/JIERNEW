@@ -259,15 +259,14 @@ async def cmd_start(message: types.Message):
     await conn.close()
 
     welcome_text = (
-        f"Assalomu alaykum, <b>{message.from_user.full_name}!</b> 👋\n\n"
-        "<b>J'IER — sara insholar va maqolalar jamlanmasiga xush kelibsiz!</b>\n\n"
-        "Platformamiz zamonaviy Mini Ilova (Web App) formatida ishlaydi. "
-        "Bu sizga maqolalarni qulay o'qish, tun/kun rejimini tanlash va o'z g'aznangizga ega bo'lish imkonini beradi.\n\n"
-        "👇 <i>Ilovaga kirish uchun pastki chap burchakdagi maxsus menyuni bosing!</i>"
+        f"Xush kelibsiz, <b>{message.from_user.full_name}!</b> ✨\n\n"
+        "<b>J'IER — bu shunchaki bot emas, balki sizning shaxsiy intellektual g'aznangizdir.</b>\n\n"
+        "Biz eng qimmatli insholar va maqolalarni topib, ularni zamonaviy <b>Mini Ilova</b> formatida sizga taqdim etamiz. Faqat siz va kitobdek sokin muhit.\n\n"
+        "👇 <i>Bilimlar olamiga sho'ng'ish uchun pastki chap burchakdagi menyuni bosing!</i>"
     )
     
     # 🚨 O'ZINGIZ YASAGAN RASMNING LINKINI SHU YERGA QO'YASIZ 🚨
-    rasm_linki = "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?q=80&w=800&auto=format&fit=crop" 
+    rasm_linki = "" 
     
     try:
         await message.answer_photo(
