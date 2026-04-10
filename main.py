@@ -16,7 +16,6 @@ TOKEN = "8689624670:AAEsKwQCdyIozvw2-RbY_Y-58cZmBg4K_R8"
 ADMIN_ID = 1805830760 
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@ep-nomi.eu-central-1.aws.neon.tech/neondb?sslmode=require")
-WEB_APP_URL = "https://jieruz.netlify.app"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -47,12 +46,16 @@ async def init_db():
     await conn.execute("CREATE TABLE IF NOT EXISTS sent_messages (post_id INTEGER, user_id BIGINT, msg_id BIGINT)")
     await conn.close()
 
+# --- 3. TUGMALAR ---
 def main_menu(user_id=None):
-    b = ReplyKeyboardBuilder()
-    b.button(text="📱 Ilovani ochish", web_app=types.WebAppInfo(url=WEB_APP_URL))
+    # Faqat adminga Statistika tugmasi chiqadi
     if user_id == ADMIN_ID:
+        b = ReplyKeyboardBuilder()
         b.button(text="📊 Statistika")
-    return b.adjust(1).as_markup(resize_keyboard=True)
+        return b.adjust(1).as_markup(resize_keyboard=True)
+    
+    # Qolgan barcha o'quvchilardan klaviatura (katta tugma) butunlay olib tashlanadi
+    return types.ReplyKeyboardRemove()
 
 def cancel_menu():
     b = ReplyKeyboardBuilder()
@@ -183,7 +186,7 @@ async def toggle_menu(callback: types.CallbackQuery):
 @dp.callback_query(F.data.startswith(("v_", "l_")))
 async def switch_lang(callback: types.CallbackQuery):
     parts = callback.data.split("_")
-    mode, p_id, lang = parts[0], int(parts[1]), parts[2]
+    mode, p_id, lang = parts[0], int(parts[1], parts[2])
     langs = await get_available_langs(p_id)
     
     conn = await asyncpg.connect(DATABASE_URL)
@@ -258,12 +261,23 @@ async def cmd_start(message: types.Message):
     welcome_text = (
         f"Assalomu alaykum, <b>{message.from_user.full_name}!</b> 👋\n\n"
         "<b>J'IER — sara insholar va maqolalar jamlanmasiga xush kelibsiz!</b>\n\n"
-        "Endi barcha ma'lumotlar, qiziqarli maqolalar va sizning shaxsiy g'aznangiz zamonaviy Mini Ilovamizga ko'chirildi. "
-        "Bu sizga o'qish uchun ancha qulayroq muhitni taqdim etadi.\n\n"
-        "🚀 <i>Ilovaga kirish uchun pastdagi <b>«📱 Ilovani ochish»</b> tugmasini bosing!</i>"
+        "Platformamiz zamonaviy Mini Ilova (Web App) formatida ishlaydi. "
+        "Bu sizga maqolalarni qulay o'qish, tun/kun rejimini tanlash va o'z g'aznangizga ega bo'lish imkonini beradi.\n\n"
+        "👇 <i>Ilovaga kirish uchun pastki chap burchakdagi maxsus menyuni bosing!</i>"
     )
     
-    await message.answer(welcome_text, reply_markup=main_menu(message.from_user.id), parse_mode="HTML")
+    # 🚨 O'ZINGIZ YASAGAN RASMNING LINKINI SHU YERGA QO'YASIZ 🚨
+    rasm_linki = "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?q=80&w=800&auto=format&fit=crop" 
+    
+    try:
+        await message.answer_photo(
+            photo=rasm_linki,
+            caption=welcome_text,
+            reply_markup=main_menu(message.from_user.id),
+            parse_mode="HTML"
+        )
+    except:
+        await message.answer(welcome_text, reply_markup=main_menu(message.from_user.id), parse_mode="HTML")
 
 @dp.callback_query(F.data == "del_msg")
 async def delete_my_msg(callback: types.CallbackQuery):
