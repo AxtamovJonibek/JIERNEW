@@ -15,14 +15,12 @@ from aiogram.types import FSInputFile
 TOKEN = "8689624670:AAEsKwQCdyIozvw2-RbY_Y-58cZmBg4K_R8" 
 ADMIN_ID = 1805830760 
 
-# 🚨 NEON BAZA VA MINI APP SSILKALARI 🚨
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@ep-nomi.eu-central-1.aws.neon.tech/neondb?sslmode=require")
-WEB_APP_URL = "https://jieruz.netlify.app" # Mini App ssilkasini shu yerga yozing
+WEB_APP_URL = "https://jieruz.netlify.app"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# --- XOTIRA HOLATLARI (STATES) ---
 class PostStates(StatesGroup):
     waiting_title = State() 
     waiting_uz_media = State()
@@ -32,13 +30,6 @@ class PostStates(StatesGroup):
     waiting_en_media = State()
     waiting_en_text = State()
 
-class ContactStates(StatesGroup):
-    waiting_for_message = State()
-
-class AdminReplyStates(StatesGroup):
-    waiting_for_reply = State()
-
-# --- 2. BAZA (NEON POSTGRESQL) ---
 async def init_db():
     conn = await asyncpg.connect(DATABASE_URL)
     await conn.execute("""CREATE TABLE IF NOT EXISTS users 
@@ -56,16 +47,11 @@ async def init_db():
     await conn.execute("CREATE TABLE IF NOT EXISTS sent_messages (post_id INTEGER, user_id BIGINT, msg_id BIGINT)")
     await conn.close()
 
-# --- 3. TUGMALAR (YANGILANGAN) ---
 def main_menu(user_id=None):
     b = ReplyKeyboardBuilder()
-    # Asosiy Mini App tugmasi
     b.button(text="📱 Ilovani ochish", web_app=types.WebAppInfo(url=WEB_APP_URL))
-    
-    # Faqat Admin uchun Statistika tugmasi
     if user_id == ADMIN_ID:
         b.button(text="📊 Statistika")
-        
     return b.adjust(1).as_markup(resize_keyboard=True)
 
 def cancel_menu():
@@ -79,9 +65,9 @@ async def get_available_langs(p_id):
     await conn.close()
     if not r: return []
     langs = []
-    if r or r: langs.append("uz")
-    if r or r: langs.append("ru")
-    if r or r: langs.append("en")
+    if r['uz_text'] or r['uz_file']: langs.append("uz")
+    if r['ru_text'] or r['ru_file']: langs.append("ru")
+    if r['en_text'] or r['en_file']: langs.append("en")
     return langs
 
 def get_post_keyboard(p_id, available_langs, is_expanded=False, is_admin=False, show_read=False):
@@ -91,7 +77,7 @@ def get_post_keyboard(p_id, available_langs, is_expanded=False, is_admin=False, 
         kb.button(text="🌍 boshqa tilda o‘qimoqchimisiz?", callback_data=f"expand_{prefix}_{p_id}")
     elif is_expanded:
         for lang in available_langs:
-            label = {"uz": "🇺🇿 UZ", "ru": "🇷🇺 RU", "en": "🇺🇸 EN"}
+            label = {"uz": "🇺🇿 UZ", "ru": "🇷🇺 RU", "en": "🇺🇸 EN"}[lang]
             kb.button(text=label, callback_data=f"{prefix}_{p_id}_{lang}")
         kb.button(text="🔙 orqaga", callback_data=f"collapse_{prefix}_{p_id}")
     if show_read: kb.button(text="o'qib bo'ldim! ✅", callback_data="del_msg")
@@ -106,7 +92,6 @@ async def send_specific_media(chat_id, text, file_id, media_type, kb):
         else: return await bot.send_message(chat_id, text, reply_markup=kb)
     except: return None
 
-# --- 4. EXCEL STATISTIKA ---
 @dp.message(F.text == "📊 Statistika")
 async def admin_statistics(message: types.Message):
     if message.from_user.id != ADMIN_ID: return
@@ -117,8 +102,8 @@ async def admin_statistics(message: types.Message):
     total_users = len(users_list)
     stat_text = f"📊 <b>Platforma statistikasi:</b>\n\n👥 Faol a'zolar: <b>{total_users}</b> ta\n\n📋 <b>Foydalanuvchilar (Oxirgi 30 ta):</b>\n"
     
-    for i, u in enumerate(users_list, 1):
-        uid, fname, uname = u, u, u
+    for i, u in enumerate(users_list[:30], 1):
+        uid, fname, uname = u['user_id'], u['full_name'], u['username']
         fname_safe = fname if fname else "Noma'lum"
         uname_text = f" | @{uname}" if uname else ""
         stat_text += f"{i}. <a href='tg://user?id={uid}'>{fname_safe}</a> (<code>{uid}</code>){uname_text}\n"
@@ -141,10 +126,10 @@ async def export_users_excel(callback: types.CallbackQuery):
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Foydalanuvchilar"
-    ws.append()
+    ws.append(["Tartib", "Telegram ID", "Ism-familiya", "Username"])
     
     for i, u in enumerate(users, 1):
-        ws.append(, u or "Noma'lum", f"@{u}" if u else "Yo'q"])
+        ws.append([i, u['user_id'], u['full_name'] or "Noma'lum", f"@{u['username']}" if u['username'] else "Yo'q"])
         
     file_name = "JIER_foydalanuvchilar.xlsx"
     wb.save(file_name)
@@ -153,34 +138,34 @@ async def export_users_excel(callback: types.CallbackQuery):
     os.remove(file_name)
     await callback.answer()
 
-# --- 5. ARXIV VA GLOBAL O'CHIRISH ---
 @dp.callback_query(F.data.startswith("send_"))
 async def broadcast_handler(callback: types.CallbackQuery):
-    p_id = int(callback.data.split("_")); langs = await get_available_langs(p_id)
+    p_id = int(callback.data.split("_")[1])
+    langs = await get_available_langs(p_id)
     if not langs: return
-    first = langs
+    first = langs[0]
     
     conn = await asyncpg.connect(DATABASE_URL)
     post = await conn.fetchrow(f"SELECT {first}_text, {first}_file, {first}_type FROM all_posts WHERE id = $1", p_id)
     users = await conn.fetch("SELECT user_id FROM users")
     
     for row in users:
-        sent = await send_specific_media(row, post, post, post, get_post_keyboard(p_id, langs))
+        sent = await send_specific_media(row['user_id'], post[0], post[1], post[2], get_post_keyboard(p_id, langs))
         if sent: 
-            await conn.execute("INSERT INTO sent_messages (post_id, user_id, msg_id) VALUES ($1, $2, $3)", p_id, row, sent.message_id)
+            await conn.execute("INSERT INTO sent_messages (post_id, user_id, msg_id) VALUES ($1, $2, $3)", p_id, row['user_id'], sent.message_id)
             
     await conn.close()
     await callback.message.answer("🚀 Barcha foydalanuvchilarga yuborildi!"); await callback.answer()
 
 @dp.callback_query(F.data.startswith("global_"))
 async def global_delete_handler(callback: types.CallbackQuery):
-    p_id = int(callback.data.split("_"))
+    p_id = int(callback.data.split("_")[1])
     if callback.from_user.id != ADMIN_ID: return
     
     conn = await asyncpg.connect(DATABASE_URL)
     messages = await conn.fetch("SELECT user_id, msg_id FROM sent_messages WHERE post_id = $1", p_id)
     for row in messages:
-        try: await bot.delete_message(row, row)
+        try: await bot.delete_message(row['user_id'], row['msg_id'])
         except: pass
     await conn.execute("DELETE FROM all_posts WHERE id = $1", p_id)
     await conn.execute("DELETE FROM sent_messages WHERE post_id = $1", p_id)
@@ -189,14 +174,16 @@ async def global_delete_handler(callback: types.CallbackQuery):
 
 @dp.callback_query(F.data.startswith(("expand_", "collapse_")))
 async def toggle_menu(callback: types.CallbackQuery):
-    parts = callback.data.split("_"); action, prefix, p_id = parts, parts, int(parts)
+    parts = callback.data.split("_")
+    action, prefix, p_id = parts[0], parts[1], int(parts[2])
     langs = await get_available_langs(p_id)
     await callback.message.edit_reply_markup(reply_markup=get_post_keyboard(p_id, langs, is_expanded=(action == "expand"), is_admin=(callback.from_user.id == ADMIN_ID), show_read=(prefix == "v")))
     await callback.answer()
 
 @dp.callback_query(F.data.startswith(("v_", "l_")))
 async def switch_lang(callback: types.CallbackQuery):
-    parts = callback.data.split("_"); mode, p_id, lang = parts, int(parts), parts
+    parts = callback.data.split("_")
+    mode, p_id, lang = parts[0], int(parts[1]), parts[2]
     langs = await get_available_langs(p_id)
     
     conn = await asyncpg.connect(DATABASE_URL)
@@ -206,14 +193,13 @@ async def switch_lang(callback: types.CallbackQuery):
     if r:
         kb = get_post_keyboard(p_id, langs, is_expanded=True, is_admin=(callback.from_user.id == ADMIN_ID), show_read=(mode == "v"))
         try:
-            if r != "text":
-                media = types.InputMediaPhoto(media=r, caption=r) if r == "photo" else types.InputMediaVideo(media=r, caption=r)
+            if r[2] != "text":
+                media = types.InputMediaPhoto(media=r[1], caption=r[0]) if r[2] == "photo" else types.InputMediaVideo(media=r[1], caption=r[0])
                 await callback.message.edit_media(media=media, reply_markup=kb)
-            else: await callback.message.edit_text(r, reply_markup=kb)
+            else: await callback.message.edit_text(r[0], reply_markup=kb)
         except: pass
     await callback.answer()
 
-# --- 6. ADMIN: POST YARATISH ---
 @dp.message(Command("yangi_post"))
 async def start_new_post(message: types.Message, state: FSMContext):
     if message.from_user.id == ADMIN_ID:
@@ -225,7 +211,7 @@ async def get_title_step(message: types.Message, state: FSMContext):
 
 @dp.message(PostStates.waiting_uz_media)
 async def get_uz_media_step(message: types.Message, state: FSMContext):
-    f, t = (message.photo.file_id, "photo") if message.photo else (message.video.file_id, "video") if message.video else (None, "text")
+    f, t = (message.photo[-1].file_id, "photo") if message.photo else (message.video.file_id, "video") if message.video else (None, "text")
     await state.update_data(uz_file=f, uz_type=t); await message.answer("🇺🇿 **UZ** Matn (/skip):"); await state.set_state(PostStates.waiting_uz_text)
 
 @dp.message(PostStates.waiting_uz_text)
@@ -234,7 +220,7 @@ async def get_uz_text_step(message: types.Message, state: FSMContext):
 
 @dp.message(PostStates.waiting_ru_media)
 async def get_ru_media_step(message: types.Message, state: FSMContext):
-    f, t = (message.photo.file_id, "photo") if message.photo else (message.video.file_id, "video") if message.video else (None, "text")
+    f, t = (message.photo[-1].file_id, "photo") if message.photo else (message.video.file_id, "video") if message.video else (None, "text")
     await state.update_data(ru_file=f, ru_type=t); await message.answer("🇷🇺 **RU** Matn (/skip):"); await state.set_state(PostStates.waiting_ru_text)
 
 @dp.message(PostStates.waiting_ru_text)
@@ -243,7 +229,7 @@ async def get_ru_text_step(message: types.Message, state: FSMContext):
 
 @dp.message(PostStates.waiting_en_media)
 async def get_en_media_step(message: types.Message, state: FSMContext):
-    f, t = (message.photo.file_id, "photo") if message.photo else (message.video.file_id, "video") if message.video else (None, "text")
+    f, t = (message.photo[-1].file_id, "photo") if message.photo else (message.video.file_id, "video") if message.video else (None, "text")
     await state.update_data(en_file=f, en_type=t); await message.answer("🇺🇸 **EN** Matn (/skip):"); await state.set_state(PostStates.waiting_en_text)
 
 @dp.message(PostStates.waiting_en_text)
@@ -253,17 +239,15 @@ async def get_en_text_step(message: types.Message, state: FSMContext):
     conn = await asyncpg.connect(DATABASE_URL)
     p_id = await conn.fetchval("""INSERT INTO all_posts (title, uz_text, uz_file, uz_type, ru_text, ru_file, ru_type, en_text, en_file, en_type) 
                                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id""", 
-                                  data, data.get('uz_text'), data.get('uz_file'), data.get('uz_type'), 
+                                  data['title'], data.get('uz_text'), data.get('uz_file'), data.get('uz_type'), 
                                   data.get('ru_text'), data.get('ru_file'), data.get('ru_type'), en_text_data, data.get('en_file'), data.get('en_type'))
     await conn.close()
     
     kb = InlineKeyboardBuilder(); kb.button(text="🚀 Hammaga yuborish", callback_data=f"send_{p_id}")
-    await message.answer(f"✅ '{data}' tayyor.", reply_markup=kb.as_markup()); await state.clear()
+    await message.answer(f"✅ '{data['title']}' tayyor.", reply_markup=kb.as_markup()); await state.clear()
 
-# --- 7. START VA XABARNI O'CHIRISH (YANGILANGAN) ---
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
-    # 1. Obunachini bazaga saqlash
     conn = await asyncpg.connect(DATABASE_URL)
     await conn.execute("""INSERT INTO users (user_id, full_name, username) 
                           VALUES ($1, $2, $3) 
@@ -271,7 +255,6 @@ async def cmd_start(message: types.Message):
                           message.from_user.id, message.from_user.full_name, message.from_user.username)
     await conn.close()
 
-    # 2. Yangi kutib olish va yo'riqnoma matni
     welcome_text = (
         f"Assalomu alaykum, <b>{message.from_user.full_name}!</b> 👋\n\n"
         "<b>J'IER — sara insholar va maqolalar jamlanmasiga xush kelibsiz!</b>\n\n"
@@ -287,7 +270,6 @@ async def delete_my_msg(callback: types.CallbackQuery):
     try: await callback.message.delete()
     except: pass
 
-# --- 8. RENDER UCHUN UYG'OTGICH SERVER VA ASOSIY FUNKSIYA ---
 async def handle_ping(request):
     return web.Response(text="J'IER Bot mukammal ishlamoqda!")
 
@@ -296,13 +278,10 @@ async def main():
     logging.basicConfig(level=logging.INFO)
     print("✅ Bot va Neon Baza barqaror ulandi...")
     
-    # 🧹 Eskirib qolgan (navbatda turgan) xabarlarni o'chirib tashlash:
     await bot.delete_webhook(drop_pending_updates=True)
     
-    # 1. Telegram botni orqa fonda ishga tushirish
     asyncio.create_task(dp.start_polling(bot))
 
-    # 2. Render uxlab qolmasligi uchun "Mitti Web-server" yasash
     app = web.Application()
     app.router.add_get('/', handle_ping)
     runner = web.AppRunner(app)
@@ -313,7 +292,7 @@ async def main():
     await site.start()
     
     print(f"🚀 Mitti qorovul-server {port}-portda yondi! Bot endi o'chmaydi.")
-    await asyncio.Event().wait() # Dastur yopilib qolmasligi uchun kutish
+    await asyncio.Event().wait() 
 
 if __name__ == "__main__": 
     asyncio.run(main())
